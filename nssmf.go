@@ -6,7 +6,10 @@ import (
 	"os/exec"
 )
 
-func apply_network_slice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci string) {
+type nssmf struct {
+}
+
+func (nf *nssmf) apply_network_slice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci string) {
 	arg := snssai + " " + gnb_ip + " " + gnb_n3_ip_B + " " + ngci
 	slice_cmd := "shell-script/slice-create.sh " + arg
 	input_cmd := slice_cmd
@@ -20,7 +23,7 @@ func apply_network_slice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci 
 	return
 }
 
-func delete_network_slice(snssai string) {
+func (nf *nssmf) delete_network_slice(snssai string) {
 	arg := snssai
 	slice_cmd := "shell-script/slice-delete.sh " + arg
 	input_cmd := slice_cmd
