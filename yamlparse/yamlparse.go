@@ -12,7 +12,7 @@ import (
 
 func ModifyCPU(sliceID string, NF string, cpu int) {
     var resourceYaml Yaml2GoResource
-	cpuLimit := strconv.Itoa(cpu) + "m"
+	cpuLimit := string('"') + strconv.Itoa(cpu) + "m" + string('"')
 	path := "network-slice/" + sliceID + "/" + NF + "-" + sliceID + "/overlays/" + NF + "-" + sliceID + "-cpu.yaml"
     yamlFile, err := ioutil.ReadFile(path)
     if err != nil {
@@ -31,4 +31,6 @@ func ModifyCPU(sliceID string, NF string, cpu int) {
         log.Fatal(err)
     }
     fmt.Println(string(out))
+
+
 }
