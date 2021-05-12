@@ -12,8 +12,7 @@ import (
 
 func ModifyCPU(sliceID string, NF string, cpu int) {
     var resourceYaml Yaml2GoResource
-    t := string('"')
-	cpuLimit := t + strconv.Itoa(cpu) + "m" + t
+	cpuLimit := strconv.Itoa(cpu) + "m"
 	path := "network-slice/" + sliceID + "/" + NF + "-" + sliceID + "/overlays/" + NF + "-" + sliceID + "-cpu.yaml"
     yamlFile, err := ioutil.ReadFile(path)
     if err != nil {
@@ -24,8 +23,8 @@ func ModifyCPU(sliceID string, NF string, cpu int) {
         panic(err)
     }
 	fmt.Println(resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu)
-	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu = cpuLimit
-	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu   = cpuLimit
+	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu = strconv.Quote(cpuLimit)
+	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu   = strconv.Quote(cpuLimit)
     fmt.Println(resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu)
     out, err := yaml.Marshal(&resourceYaml)
     if err != nil {
@@ -33,5 +32,9 @@ func ModifyCPU(sliceID string, NF string, cpu int) {
     }
     fmt.Println(string(out))
 
+	err = ioutil.WriteFile(path, out, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 }
