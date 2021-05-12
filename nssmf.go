@@ -4,10 +4,22 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+
+	//"github.com/p76081158/free5gc-nssmf/bindata"
 )
 
-func ApplyNetworkSlice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci string) {
-	arg := snssai + " " + gnb_ip + " " + gnb_n3_ip_B + " " + ngci
+func GetgNBinfo() (gnb_ip string, gnb_n3_ip_B string) {
+
+	return gnb_ip, gnb_n3_ip_B
+}
+
+func ApplyNetworkSlice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci string, cpu int) {
+	arg := snssai + " " + gnb_ip + " " + gnb_n3_ip_B + " " + ngci + " " + strconv.Itoa(cpu)
+	// test, err := bindata.Asset("shell-script/slice-create.sh")
+	// if err != nil {
+	// 	// Asset was not found.
+	// }
 	slice_cmd := "shell-script/slice-create.sh " + arg
 	input_cmd := slice_cmd
 	cmd := exec.Command("/bin/sh", "-c", input_cmd)
@@ -34,6 +46,14 @@ func DeleteNetworkSlice(snssai string) {
 	return
 }
 
+// func AdjustNetworkSlice(snssai string, cpu int) {
+
+// }
+
+// func main() {
+// 	//ApplyNetworkSlice("0x01010203", "192.168.72.50", "200", "466-01-000000010")
+// 	DeleteNetworkSlice("0x01010203")
+// }
 // 0x01010203
 // 192.168.72.50
 // 10.200.100.3 (200)
