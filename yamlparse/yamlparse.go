@@ -26,5 +26,9 @@ func ModifyCPU(sliceID string, NF string, cpu int) {
 	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu = cpuLimit
 	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu   = cpuLimit
     fmt.Println(resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu)
-    yaml.Marshal(resourceYaml)
+    out, err := yaml.Marshal(&resourceYaml)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(string(out))
 }
