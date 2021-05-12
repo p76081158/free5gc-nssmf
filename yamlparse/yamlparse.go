@@ -23,8 +23,8 @@ func ModifyCPU(sliceID string, NF string, cpu int) {
         panic(err)
     }
 	fmt.Println(resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu)
-	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu = strconv.Quote(cpuLimit)
-	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu   = strconv.Quote(cpuLimit)
+	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu = cpuLimit
+	resourceYaml.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu   = cpuLimit
     fmt.Println(resourceYaml.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu)
     out, err := yaml.Marshal(&resourceYaml)
     if err != nil {
