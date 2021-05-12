@@ -46,9 +46,9 @@ func DeleteNetworkSlice(snssai string) {
 	return
 }
 
-// func AdjustNetworkSlice(snssai string, cpu int) {
-
-// }
+func AdjustNetworkSlice(snssai string, cpu int) {
+	
+}
 
 // func main() {
 // 	//ApplyNetworkSlice("0x01010203", "192.168.72.50", "200", "466-01-000000010")
