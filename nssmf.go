@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/p76081158/free5gc-nssmf/yamlparse"
 	//"github.com/p76081158/free5gc-nssmf/bindata"
 )
 
@@ -46,8 +47,8 @@ func DeleteNetworkSlice(snssai string) {
 	return
 }
 
-func AdjustNetworkSlice(snssai string, cpu int) {
-	
+func AdjustNetworkSlice(snssai string, NF string, cpu int) {
+	yamlparse.ModifyCPU(snssai, NF, cpu)
 }
 
 // func main() {
