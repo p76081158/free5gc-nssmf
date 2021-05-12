@@ -49,6 +49,12 @@ func DeleteNetworkSlice(snssai string) {
 
 func AdjustNetworkSlice(snssai string, NF string, cpu int) {
 	yamlparse.ModifyCPU(snssai, NF, cpu)
+	return
+}
+
+func ApplyResourceChange(snssai string, NF string) {
+	
+	return
 }
 
 // func main() {
