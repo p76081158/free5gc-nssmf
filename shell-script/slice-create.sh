@@ -24,6 +24,18 @@ then
     exit
 fi
 
+if [ -z "$5" ]
+then
+    echo "Please enter cpu limit of slice service"
+    exit
+fi
+
+if [ -z "$6" ]
+then
+    echo "Please enter cpu limit of core network user plane network function"
+    exit
+fi
+
 #if [ -d network-slice/$1 ]
 #then
 #    echo "Network Slice already exists"
@@ -34,30 +46,36 @@ nsi="1"
 sst=${1:2:2}
 sd=${1:4}
 id="$1"
-bias=$(kubectl get subnets.kubeovn.io | grep -c free5gc-n4)
-ue_ip=$(( 60 + bias ))
-n3_ip=$(( 4 + bias ))
-n4_ip=$(( 101 + bias ))
 gnb_ip="$2"
 gnb_n3_ip="$3"
 ngci="$4"
-#cpu="$5"
-#cpu_limit="$(cpu)m"
+cpu="$5"
+cpu_limit="${cpu}m"
+core_network_function_cpu="$6"
+core_network_function_cpu_limit="${core_network_function_cpu}m"
+mcc=${4:0:3}
+mnc=${4:4:2}
+bias=$(kubectl get subnets.kubeovn.io | grep -c free5gc-n4-$ngci)
+ue_ip=$(( 60 + bias ))
+n3_ip=$(( 4 + bias ))
+n4_ip=$(( 101 + bias ))
 dir="overlays"
 echo "Create Slice"
+echo "mcc:"$mcc
+echo "mnc:"$mnc
 echo "nsi:"$nsi
 echo "sst:"$sst
 echo "sd :"$sd
 
 cd network-slice
-mkdir $id
+mkdir -p $id
 cd $id
 
 #
 # create custom resource yaml
 #
 
-mkdir custom-resource
+mkdir -p custom-resource
 
 cat <<EOF > custom-resource/network-slice-cr.yaml
 ---
@@ -70,7 +88,7 @@ spec:
   sd: "$sd"
   n4_cidr: "10.200.$n4_ip.0/24"
   ue_subnet: "60.$ue_ip.0.0/16"
-  cpu: default
+  cpu: $cpu_limit
   memory: default
   bandwidth: default
 EOF
@@ -79,10 +97,10 @@ EOF
 # create smf yaml
 #
 
-mkdir smf-$id
-mkdir smf-$id/base
-mkdir smf-$id/base/config
-mkdir smf-$id/overlays
+mkdir -p smf-$id
+mkdir -p smf-$id/base
+mkdir -p smf-$id/base/config
+mkdir -p smf-$id/overlays
 cp -r ../../TLS smf-$id/base
 
 cat <<EOF > smf-$id/base/config/smfcfg-$id.yaml
@@ -120,7 +138,7 @@ configuration:
     up_nodes:
       gNB1:
         type: AN
-        an_ip: 192.168.72.$gnb_ip
+        an_ip: $gnb_ip
       AnchorUPF1:
         type: UPF
         node_id: 10.200.$n4_ip.101 # the IP/FQDN of N4 interface on this UPF (PFCP)
@@ -148,7 +166,7 @@ configuration:
         ipv4: 8.8.8.8
         ipv6: 2001:4860:4860::8888
   ue_subnet: 60.$ue_ip.0.0/16
-  nrfUri: http://free5gc-nrf:8000
+  nrfUri: http://free5gc-nrf-$mcc-$mnc:8000
   ulcl: false
 
 logger:
@@ -181,8 +199,8 @@ info:
   description: Routing information for UE
 
 ueRoutingInfo: # the list of UE routing information
-  - SUPI: imsi-2089300007487 # Subscription Permanent Identifier of the UE
-    AN: 192.168.72.$gnb_ip # the IP address of RAN (gNB)
+  - SUPI: imsi-$mcc$mnc00007487 # Subscription Permanent Identifier of the UE
+    AN: $gnb_ip # the IP address of RAN (gNB)
     PathList: # the pre-config paths for this SUPI
       - DestinationIP: 60.60.0.100 # the destination IP address on Data Network (DN)
         # the order of UPF nodes in this path. We use the UPF's name to represent each UPF node.
@@ -198,8 +216,8 @@ ueRoutingInfo: # the list of UE routing information
           - BranchingUPF
           - AnchorUPF2
 
-  - SUPI: imsi-2089300007486 # Subscription Permanent Identifier of the UE
-    AN: 10.200.200.102 # the IP address of RAN
+  - SUPI: imsi-$mcc$mnc00007486 # Subscription Permanent Identifier of the UE
+    AN: $gnb_ip # the IP address of RAN
     PathList: # the pre-config paths for this SUPI
       - DestinationIP: 10.10.0.10 # the destination IP address on Data Network (DN)
         # the order of UPF nodes in this path. We use the UPF's name to represent each UPF node.
@@ -281,11 +299,11 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - name: free5gc-sbi
+  - name: free5gc-smf-$id-sbi
     port: 8000
     protocol: TCP
     targetPort: 8000
-  - name: free5gc-n4-$id
+  - name: free5gc-smf-$id-n4
     port: 8805
     protocol: UDP
     targetPort: 8805
@@ -319,9 +337,9 @@ spec:
         sst: "$sst"       # Slice/Service Type (1 byte uinteger, range: 0~255)
         sd: "$sd"    # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
       annotations:
-        k8s.v1.cni.cncf.io/networks: free5gc-n4-$id
-        free5gc-n4-$id.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n4-$id
-        free5gc-n4-$id.free5gc.ovn.kubernetes.io/ip_address: 10.200.$n4_ip.20
+        k8s.v1.cni.cncf.io/networks: free5gc-n4-$ngci-$id
+        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n4-$ngci-$id
+        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/ip_address: 10.200.$n4_ip.20
     spec:
       securityContext:
         runAsUser: 0
@@ -390,19 +408,19 @@ spec:
         - name: free5gc-smf
           resources:
             requests:
-              cpu: "250m"
+              cpu: "$core_network_function_cpu_limit"
             limits:
-              cpu: "250m"
+              cpu: "$core_network_function_cpu_limit"
 EOF
 
 #
 # create upf yaml
 #
 
-mkdir upf-$id
-mkdir upf-$id/base
-mkdir upf-$id/base/config
-mkdir upf-$id/overlays
+mkdir -p upf-$id
+mkdir -p upf-$id/base
+mkdir -p upf-$id/base/config
+mkdir -p upf-$id/overlays
 
 cat <<EOF > upf-$id/base/config/upfcfg-$id.yaml
 info:
@@ -521,11 +539,11 @@ spec:
         sst: "$sst"       # Slice/Service Type (1 byte uinteger, range: 0~255)
         sd: "$sd"    # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
       annotations:
-        k8s.v1.cni.cncf.io/networks: free5gc-n3-$ngci, free5gc-n4-$id
+        k8s.v1.cni.cncf.io/networks: free5gc-n3-$ngci, free5gc-n4-$ngci-$id
         free5gc-n3-$ngci.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n3-$ngci
         free5gc-n3-$ngci.free5gc.ovn.kubernetes.io/ip_address: 10.$gnb_n3_ip.100.$n3_ip
-        free5gc-n4-$id.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n4-$id
-        free5gc-n4-$id.free5gc.ovn.kubernetes.io/ip_address: 10.200.$n4_ip.101
+        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n4-$ngci-$id
+        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/ip_address: 10.200.$n4_ip.101
     spec:
       securityContext:
         runAsUser: 0
@@ -605,23 +623,130 @@ spec:
         - name: free5gc-upf
           resources:
             requests:
-              cpu: "250m"
+              cpu: "$core_network_function_cpu_limit"
             limits:
-              cpu: "250m"
+              cpu: "$core_network_function_cpu_limit"
+EOF
+
+#
+# create service yaml
+#
+
+mkdir -p service-$id/base
+mkdir -p service-$id/overlays
+
+cat <<EOF > service-$id/base/kustomization.yaml
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: free5gc
+resources:
+  - service-$id-service.yaml
+  - service-$id-deployment.yaml
+EOF
+
+cat <<EOF > service-$id/base/service-$id-service.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: service-$ngci-$id
+  name: service-$ngci-$id
+spec:
+  type: ClusterIP
+  ports:
+  - name: service-$ngci-$id
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: service-$ngci-$id
+EOF
+
+cat <<EOF > service-$id/base/service-$id-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-$ngci-$id
+  labels:
+    app: service-$ngci-$id
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-$ngci-$id
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  # minReadySeconds: 1
+  template:
+    metadata:
+      labels:
+        app: service-$ngci-$id
+        nsi: "$nsi"        # Network Slice Instance of three networks (RAN,TN,CN)
+        sst: "$sst"       # Slice/Service Type (1 byte uinteger, range: 0~255)
+        sd: "$sd"    # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
+      annotations:
+        # ovn.kubernetes.io/ingress_rate: "3"
+        # ovn.kubernetes.io/egress_rate: "1"
+    spec:
+      containers:
+        - name: cpu-usage-simulator
+          image: black842679513/cpu-usage-simulator:v1.0.0
+          imagePullPolicy: IfNotPresent
+          # imagePullPolicy: Always
+          args: ["--", "0", "20", "10"]    # ["--", stress_cpu_stress, cpu_loading, time_duration]
+          securityContext:
+            privileged: true
+EOF
+
+cat <<EOF > service-$id/overlays/kustomization.yaml
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+bases:
+- ../base
+patchesStrategicMerge:
+- service-$id-cpu.yaml
+EOF
+
+cat <<EOF > service-$id/overlays/service-$id-cpu.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: service-$ngci-$id
+  name: service-$ngci-$id
+spec:
+  template:
+    spec:
+      containers:
+        - name: service-$ngci-$id
+          resources:
+            requests:
+              cpu: "$cpu_limit"
+            limits:
+              cpu: "$cpu_limit"
 EOF
 
 #
 # create n4 subnet yaml
 #
 
-mkdir subnet
+mkdir -p subnet
 
-cat <<EOF > subnet/free5gc-n4-$id.yaml
+cat <<EOF > subnet/free5gc-n4.yaml
 ---
 apiVersion: kubeovn.io/v1
 kind: Subnet
 metadata:
-  name: free5gc-n4-$id
+  name: free5gc-n4-$ngci-$id
+  namespace: free5gc
   labels:
     nsi: "$nsi"        # Network Slice Instance of three networks (RAN,TN,CN)
     sst: "$sst"       # Slice/Service Type (1 byte uinteger, range: 0~255)
@@ -638,21 +763,21 @@ EOF
 # create n4 network-attachment-definition yaml
 #
 
-mkdir network-attachment-definition
+mkdir -p network-attachment-definition
 
-cat <<EOF > network-attachment-definition/free5gc-n4-$id.yaml
+cat <<EOF > network-attachment-definition/free5gc-n4.yaml
 ---
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
-  name: free5gc-n4-$id
+  name: free5gc-n4-$ngci-$id
   namespace: free5gc
 spec:
   config: '{
       "cniVersion": "0.3.1",
       "type": "kube-ovn",
       "server_socket": "/run/openvswitch/kube-ovn-daemon.sock",
-      "provider": "free5gc-n4-$id.free5gc.ovn"
+      "provider": "free5gc-n4-$ngci-$id.free5gc.ovn"
     }'
 EOF
 
@@ -682,8 +807,15 @@ kubectl apply -f network-attachment-definition/
 
 # Apply UPF
 kubectl apply -k upf-$id/$dir/
+sleep 1
 kubectl -n free5gc wait --for=condition=ready pod -l app=free5gc-upf-$id
 
 # Apply SMF
 kubectl apply -k smf-$id/$dir/
+sleep 1
+kubectl -n free5gc wait --for=condition=ready pod -l app=free5gc-smf-$id
+
+# Apply Service
+kubectl apply -k service-$id/$dir/
+sleep 1
 kubectl -n free5gc wait --for=condition=ready pod -l app=free5gc-smf-$id
