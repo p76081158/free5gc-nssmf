@@ -52,8 +52,18 @@ func AdjustNetworkSlice(snssai string, NF string, cpu int) {
 	return
 }
 
-func ApplyResourceChange(snssai string, NF string) {
-	
+func ApplyServiceCpuChange(snssai string, ngci string, cpu int) {
+	// kubectl -n free5gc set resources deployment service-466-93-000000010-0x01030203 --limits cpu=200m --requests cpu=200m
+	arg := ngci + "-" + snssai + " --limits cpu=" + strconv.Itoa(cpu) + "m --requests cpu=" + strconv.Itoa(cpu) + "m"
+	slice_cmd := "kubectl -n free5gc set resources deployment service-" + arg
+	input_cmd := slice_cmd
+	cmd := exec.Command("/bin/sh", "-c", input_cmd)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Got error: %s\n", err.Error())
+	}
 	return
 }
 
