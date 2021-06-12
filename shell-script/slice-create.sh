@@ -60,6 +60,7 @@ ue_ip=$(( 60 + bias ))
 n3_ip=$(( 4 + bias ))
 n4_ip=$(( 101 + bias ))
 dir="overlays"
+start=`date +%s`
 echo "Create Slice"
 echo "mcc:"$mcc
 echo "mnc:"$mnc
@@ -77,20 +78,40 @@ cd $id
 
 mkdir -p custom-resource
 
-cat <<EOF > custom-resource/network-slice-cr.yaml
+cat <<EOF > custom-resource/network-slice-active-cr.yaml
 ---
 apiVersion: "nssmf.free5gc.com/v1"
 kind: NetworkSlice
 metadata:
   name: "$id"
+  namespace: free5gc
 spec:
   sst: "$sst"
   sd: "$sd"
-  n4_cidr: "10.200.$n4_ip.0/24"
+  status: Active
+  n4_cidr: "10.$gnb_n3_ip.$n4_ip.0/24"
   ue_subnet: "60.$ue_ip.0.0/16"
   cpu: $cpu_limit
-  memory: default
-  bandwidth: default
+  memory: Default
+  bandwidth: Default
+EOF
+
+cat <<EOF > custom-resource/network-slice-inactive-cr.yaml
+---
+apiVersion: "nssmf.free5gc.com/v1"
+kind: NetworkSlice
+metadata:
+  name: "$id"
+  namespace: free5gc
+spec:
+  sst: "$sst"
+  sd: "$sd"
+  status: Inactive
+  n4_cidr: Undefined
+  ue_subnet: Undefined
+  cpu: Default
+  memory: Default
+  bandwidth: Default
 EOF
 
 #
@@ -133,7 +154,7 @@ configuration:
             ipv6: 2001:4860:4860::8888
           ueSubnet: 60.$ue_ip.0.0/16
   pfcp:
-    addr: 10.200.$n4_ip.20
+    addr: 10.$gnb_n3_ip.$n4_ip.20
   userplane_information:
     up_nodes:
       gNB1:
@@ -141,7 +162,7 @@ configuration:
         an_ip: $gnb_ip
       AnchorUPF1:
         type: UPF
-        node_id: 10.200.$n4_ip.101 # the IP/FQDN of N4 interface on this UPF (PFCP)
+        node_id: 10.$gnb_n3_ip.$n4_ip.101 # the IP/FQDN of N4 interface on this UPF (PFCP)
         sNssaiUpfInfos:
           - sNssai:
               sst: $((16#$sst))
@@ -155,7 +176,7 @@ configuration:
             networkInstance: internet
           - interfaceType: N9
             endpoints: # the IP address of this N3/N9 interface on this UPF
-              - 10.200.$n4_ip.101
+              - 10.$gnb_n3_ip.$n4_ip.101
             networkInstance: internet
     links:
       - A: gNB1
@@ -199,7 +220,7 @@ info:
   description: Routing information for UE
 
 ueRoutingInfo: # the list of UE routing information
-  - SUPI: imsi-$mcc$mnc00007487 # Subscription Permanent Identifier of the UE
+  - SUPI: imsi-${mcc}${mnc}00007487 # Subscription Permanent Identifier of the UE
     AN: $gnb_ip # the IP address of RAN (gNB)
     PathList: # the pre-config paths for this SUPI
       - DestinationIP: 60.60.0.100 # the destination IP address on Data Network (DN)
@@ -216,7 +237,7 @@ ueRoutingInfo: # the list of UE routing information
           - BranchingUPF
           - AnchorUPF2
 
-  - SUPI: imsi-$mcc$mnc00007486 # Subscription Permanent Identifier of the UE
+  - SUPI: imsi-${mcc}${mnc}00007486 # Subscription Permanent Identifier of the UE
     AN: $gnb_ip # the IP address of RAN
     PathList: # the pre-config paths for this SUPI
       - DestinationIP: 10.10.0.10 # the destination IP address on Data Network (DN)
@@ -339,7 +360,7 @@ spec:
       annotations:
         k8s.v1.cni.cncf.io/networks: free5gc-n4-$ngci-$id
         free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n4-$ngci-$id
-        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/ip_address: 10.200.$n4_ip.20
+        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/ip_address: 10.$gnb_n3_ip.$n4_ip.20
     spec:
       securityContext:
         runAsUser: 0
@@ -432,7 +453,7 @@ configuration:
   debugLevel: info
 
   pfcp:
-    - addr: 10.200.$n4_ip.101
+    - addr: 10.$gnb_n3_ip.$n4_ip.101
 
   gtpu:
     - addr: 10.$gnb_n3_ip.100.$n3_ip
@@ -543,7 +564,7 @@ spec:
         free5gc-n3-$ngci.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n3-$ngci
         free5gc-n3-$ngci.free5gc.ovn.kubernetes.io/ip_address: 10.$gnb_n3_ip.100.$n3_ip
         free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/logical_switch: free5gc-n4-$ngci-$id
-        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/ip_address: 10.200.$n4_ip.101
+        free5gc-n4-$ngci-$id.free5gc.ovn.kubernetes.io/ip_address: 10.$gnb_n3_ip.$n4_ip.101
     spec:
       securityContext:
         runAsUser: 0
@@ -656,7 +677,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - name: service-$ngci-$id
+  - name: service-port
     port: 9090
     protocol: TCP
     targetPort: 9090
@@ -699,9 +720,13 @@ spec:
           image: black842679513/cpu-usage-simulator:v1.0.0
           imagePullPolicy: IfNotPresent
           # imagePullPolicy: Always
-          args: ["--", "0", "20", "10"]    # ["--", stress_cpu_stress, cpu_loading, time_duration]
+          args: ["--", "1", "1", "1"]    # ["--", stress_cpu_nums, cpu_loading, time_duration]
           securityContext:
             privileged: true
+          ports:
+            - containerPort: 9090
+              name: service-port
+              protocol: TCP
 EOF
 
 cat <<EOF > service-$id/overlays/kustomization.yaml
@@ -726,12 +751,197 @@ spec:
   template:
     spec:
       containers:
-        - name: service-$ngci-$id
+        - name: cpu-usage-simulator
           resources:
             requests:
               cpu: "$cpu_limit"
             limits:
               cpu: "$cpu_limit"
+EOF
+
+#
+# create ue for this slice
+#
+
+mkdir -p UERANSIM-ue-$id/base/config
+
+cat <<EOF > UERANSIM-ue-$id/base/config/free5gc-ue.yaml
+# IMSI number of the UE. IMSI = [MCC|MNC|MSISDN] (In total 15 or 16 digits)
+supi: 'imsi-${mcc}${mnc}0000${sd}'
+# Mobile Country Code value of HPLMN
+mcc: '$mcc'
+# Mobile Network Code value of HPLMN (2 or 3 digits)
+mnc: '$mnc'
+
+# Permanent subscription key
+key: '8baf473f2f8fd09487cccbd7097c6862'
+# Operator code (OP or OPC) of the UE
+op: '8e27b6af0e692e750f32667a3b14605d'
+# This value specifies the OP type and it can be either 'OP' or 'OPC'
+opType: 'OPC'
+# Authentication Management Field (AMF) value
+amf: '8000'
+# IMEI number of the device. It is used if no SUPI is provided
+imei: '356938035643803'
+# IMEISV number of the device. It is used if no SUPI and IMEI is provided
+imeiSv: '4370816125816151'
+
+# List of gNB IP addresses for Radio Link Simulation
+gnbSearchList:
+  - $gnb_ip
+
+# Initial PDU sessions to be established
+sessions:
+  - type: 'IPv4'
+    apn: 'internet'
+    slice:
+      sst: 0x$sst
+      sd: 0x$sd
+    emergency: false
+
+# Configured NSSAI for this UE by HPLMN
+configured-nssai:
+  - sst: 0x$sst
+    sd: 0x$sd
+
+# Default Configured NSSAI for this UE
+default-nssai:
+  - sst: 1
+    sd: 1
+
+# Supported encryption algorithms by this UE
+integrity:
+  IA1: true
+  IA2: true
+  IA3: true
+
+# Supported integrity algorithms by this UE
+ciphering:
+  EA1: true
+  EA2: true
+  EA3: true
+
+# Integrity protection maximum data rate for user plane
+integrityMaxRate:
+  uplink: 'full'
+  downlink: 'full'
+EOF
+
+cat <<EOF > UERANSIM-ue-$id/base/kustomization.yaml
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: free5gc
+resources:
+  - ueransim-ue-sa.yaml
+  - ueransim-ue-rbac.yaml
+  # - ueransim-ue-service.yaml
+  - ueransim-ue-deployment.yaml
+
+# declare ConfigMap from a ConfigMapGenerator
+configMapGenerator:
+- name: free5gc-ueransim-ue-$id-config
+  namespace: free5gc
+  files:
+    - config/free5gc-ue.yaml
+EOF
+
+cat <<EOF > UERANSIM-ue-$id/base/ueransim-ue-sa.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: free5gc-ueransim-ue-$id-sa
+EOF
+
+cat <<EOF > UERANSIM-ue-$id/base/ueransim-ue-rbac.yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: free5gc-ueransim-ue-$id-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: free5gc-ueransim-ue-$id-sa
+EOF
+
+#cat <<EOF > UERANSIM-ue-$id/base/ueransim-ue-service.yaml
+#EOF
+
+cat <<EOF > UERANSIM-ue-$id/base/ueransim-ue-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: free5gc-ueransim-ue-$id
+  labels:
+    app: free5gc-ueransim-ue-$id
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: free5gc-ueransim-ue-$id
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: free5gc-ueransim-ue-$id
+        mcc: "$mcc"
+        mnc: "$mnc"
+      annotations:
+        k8s.v1.cni.cncf.io/networks: free5gc-macvlan
+        # free5gc-macvlan.free5gc.kubernetes.io/ip_address: 192.168.72.60
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+      containers:
+        - name: free5gc-ueransim-ue
+          image: black842679513/free5gc-ueransim:v3.1.5
+          imagePullPolicy: IfNotPresent
+          # imagePullPolicy: Always
+          command:
+            - /bin/bash
+            - -c
+            - build/nr-ue -c config/free5gc-ue.yaml
+          tty: true
+          securityContext:
+            # allow container to access the host's resources
+            privileged: true
+            capabilities:
+              add: ["NET_ADMIN", "SYS_TIME"]
+          volumeMounts:
+            - name: free5gc-ueransim-ue-$id-config
+              mountPath: /UERANSIM/config
+              # read host linux tun/tap packets
+            #- name: tun-dev-dir  
+            #  mountPath: /dev/net/tun
+        - name: tcpdump
+          image: corfr/tcpdump
+          command:
+            - /bin/sleep
+            - infinity
+        - name: ue-requests-generator
+          image: black842679513/ue-requests-generator:v1.0.1
+          imagePullPolicy: Always
+          args: ["curl --interface uesimtun0 service-$ngci-$id"]
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccountName: free5gc-ueransim-ue-$id-sa
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: free5gc-ueransim-ue-$id-config
+          configMap:
+            name: free5gc-ueransim-ue-$id-config
+        #- name: tun-dev-dir
+        #  hostPath:
+        #    path: /dev/net/tun
 EOF
 
 #
@@ -753,10 +963,10 @@ metadata:
     sd: "$sd"    # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
 spec:
   protocol: IPv4
-  cidrBlock: 10.200.$n4_ip.0/24
-  gateway: 10.200.$n4_ip.1
+  cidrBlock: 10.$gnb_n3_ip.$n4_ip.0/24
+  gateway: 10.$gnb_n3_ip.$n4_ip.1
   excludeIps:
-  - 10.200.$n4_ip.0..10.200.$n4_ip.10
+  - 10.$gnb_n3_ip.$n4_ip.0..10.$gnb_n3_ip.$n4_ip.10
 EOF
 
 #
@@ -782,22 +992,37 @@ spec:
 EOF
 
 #
-# create SFC vpn
+# create Service Monitor
 #
 
-#mkdir vpn
+#mkdir -p service-monitor
 
-#cat <<EOF > vpn/
-
+#cat <<EOF > service-monitor/service-$id-service-monitor.yaml
+#---
+#apiVersion: monitoring.coreos.com/v1
+#kind: ServiceMonitor
+#metadata:
+#  name: service-$ngci-$id-service-monitor
+  # Change this to the namespace the Prometheus instance is running in
+#  namespace: monitoring
+#  labels:
+#    app: service-$ngci-$id
+#    release: prometheus
+#spec:
+# selector:
+#    matchLabels:
+#      app: service-$ngci-$id # target service
+#  endpoints:
+#  - port: metrics
+#    interval: 5s
 #EOF
-
 
 #
 # apply to kubernetes
 #
 
 # Apply NetworkSlice Custom Resource
-kubectl apply -f custom-resource/
+kubectl apply -f custom-resource/network-slice-active-cr.yaml
 
 # Apply Subnet
 kubectl apply -f subnet/
@@ -807,7 +1032,7 @@ kubectl apply -f network-attachment-definition/
 
 # Apply UPF
 kubectl apply -k upf-$id/$dir/
-sleep 1
+sleep 1 # wait 1s for pod creation start, so that kubectl wait will not get error
 kubectl -n free5gc wait --for=condition=ready pod -l app=free5gc-upf-$id
 
 # Apply SMF
@@ -818,4 +1043,15 @@ kubectl -n free5gc wait --for=condition=ready pod -l app=free5gc-smf-$id
 # Apply Service
 kubectl apply -k service-$id/$dir/
 sleep 1
-kubectl -n free5gc wait --for=condition=ready pod -l app=free5gc-smf-$id
+kubectl -n free5gc wait --for=condition=ready pod -l app=service-$ngci-$id
+
+# Apply UE
+kubectl apply -k UERANSIM-ue-$id/overlays/
+
+# Apply Service Monitor
+#kubectl apply -f service-monitor/
+
+# Time of Network Slice ready
+end=`date +%s`
+runtime=$(( end - start ))
+echo "Deployment time of Network Slice:"$runtime

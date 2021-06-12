@@ -19,7 +19,7 @@ if [ "$sfc" = true ]
 then
     dir="overlays/sfc"
 else
-    dir="base"
+    dir="overlays"
 fi
 
 cd network-slice/$slice
@@ -29,8 +29,17 @@ kubectl delete -k upf-$slice/$dir/
 # Delete SMF
 kubectl delete -k smf-$slice/$dir/
 
+# Delete Service
+kubectl delete -k service-$slice/$dir/
+
+# Delete UE
+kubectl delete -k UERANSIM-ue-$slice/overlays/
+
+# Delete Service Monitor
+#kubectl delete -f service-monitor/
+
 # Apply NetworkSlice Custom Resource
-kubectl delete -f custom-resource/
+kubectl apply -f custom-resource/network-slice-inactive-cr.yaml
 
 # Delete Subnet
 kubectl delete -f subnet/
