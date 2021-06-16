@@ -29,8 +29,8 @@ func DeployNetworkSlice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci s
 	return
 }
 
-func ApplyNetworkSlice(snssai string) {
-	arg := snssai
+func ApplyNetworkSlice(snssai string, ngci string) {
+	arg := snssai + " " + ngci
 	slice_cmd := "shell-script/slice-create.sh " + arg
 	input_cmd := slice_cmd
 	cmd := exec.Command("/bin/sh", "-c", input_cmd)
