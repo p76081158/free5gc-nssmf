@@ -29,8 +29,8 @@ func DeployNetworkSlice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci s
 	return
 }
 
-func ApplyNetworkSlice(snssai string, gnb_ip string, gnb_n3_ip_B string, ngci string, cpu int, core_function_cpu int) {
-	arg := snssai + " " + gnb_ip + " " + gnb_n3_ip_B + " " + ngci + " " + strconv.Itoa(cpu) + " " +  strconv.Itoa(core_function_cpu)
+func ApplyNetworkSlice(snssai string) {
+	arg := snssai
 	slice_cmd := "shell-script/slice-create.sh " + arg
 	input_cmd := slice_cmd
 	cmd := exec.Command("/bin/sh", "-c", input_cmd)
