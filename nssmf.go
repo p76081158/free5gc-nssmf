@@ -42,6 +42,20 @@ func ScaleOut(snssai string, ngci string ) {
 	return
 }
 
+func WarmUp(snssai string, ngci string ) {
+	arg := snssai + " " + ngci
+	slice_cmd := "shell-script/slice-warmup.sh " + arg
+	input_cmd := slice_cmd
+	cmd := exec.Command("/bin/sh", "-c", input_cmd)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Got error: %s\n", err.Error())
+	}
+	return
+}
+
 func ApplyNetworkSlice(snssai string, ngci string) {
 	arg := snssai + " " + ngci
 	slice_cmd := "shell-script/slice-create.sh " + arg
